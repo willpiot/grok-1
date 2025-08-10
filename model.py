@@ -20,7 +20,24 @@ from typing import Any, Callable, Dict, List, NamedTuple, Optional, Sequence, Tu
 
 import haiku as hk
 import jax
-import jax.experimental.maps
+try:
+    import jax.experimental.maps as jax_maps
+except Exception:
+    class _DummyPhysicalMesh:
+        @property
+        def empty(self):
+            return True
+
+    class _DummyEnv:
+        physical_mesh = _DummyPhysicalMesh()
+
+    class _DummyThreadResources:
+        env = _DummyEnv()
+
+    class _DummyMaps:
+        thread_resources = _DummyThreadResources()
+
+    jax_maps = _DummyMaps()
 import jax.numpy as jnp
 from jax import config, tree_util
 from jax.experimental.shard_map import shard_map
@@ -69,7 +86,7 @@ def _match(qs, ks):
 
 
 def with_sharding_constraint(x, constraint):
-    if jax.experimental.maps.thread_resources.env.physical_mesh.empty:
+    if jax_maps.thread_resources.env.physical_mesh.empty:
         return x
     else:
         return pjit_sharding_constraint(x, constraint)

@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import logging
+import os
+import jax
 
 from model import LanguageModelConfig, TransformerConfig, QuantizedWeight8bit as QW8Bit
 from runners import InferenceRunner, ModelRunner, sample_from_model
@@ -22,6 +24,10 @@ CKPT_PATH = "./checkpoints/"
 
 
 def main():
+    # Adapt mesh to available local devices (CPU/GPU/TPU)
+    num_local_devices = jax.local_device_count()
+    local_mesh = (1, max(1, num_local_devices))
+
     grok_1_model = LanguageModelConfig(
         vocab_size=128 * 1024,
         pad_token=0,
@@ -57,9 +63,18 @@ def main():
         name="local",
         load=CKPT_PATH,
         tokenizer_path="./tokenizer.model",
-        local_mesh_config=(1, 8),
+        local_mesh_config=local_mesh,
         between_hosts_config=(1, 1),
     )
+
+    # If checkpoint directory is missing, skip heavy initialization
+    expected_ckpt_dir = os.path.join(CKPT_PATH, "ckpt-0")
+    if not os.path.isdir(expected_ckpt_dir):
+        print(
+            f"Checkpoints not found at {expected_ckpt_dir}. "
+            "Install weights as described in README and re-run to sample."
+        )
+        return
     inference_runner.initialize()
     gen = inference_runner.run()
 
